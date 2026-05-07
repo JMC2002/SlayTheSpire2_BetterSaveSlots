@@ -1,0 +1,13 @@
+{
+  "id": "BetterSaveSlots",
+  "name": "BetterSaveSlots",
+  "author": "JMC",
+  "version": "1.0.2",
+  "description": "将攻击牌和诅咒变为爪击，后续可能考虑做成通用形式；有问题反馈B站JMC丶或者Github，二次分发请注明来源",
+  "has_pck": true,
+  "has_dll": true,
+  "dependencies": [
+    "JmcModLib"
+  ],
+  "affects_gameplay": false
+}
