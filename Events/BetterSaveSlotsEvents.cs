@@ -1,4 +1,4 @@
-namespace BetterSaveSlots.Core;
+namespace BetterSaveSlots.Events;
 
 internal static class BetterSaveSlotsEvents
 {

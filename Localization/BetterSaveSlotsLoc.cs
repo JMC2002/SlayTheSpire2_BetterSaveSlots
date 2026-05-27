@@ -1,6 +1,6 @@
 using MegaCrit.Sts2.Core.Localization;
 
-namespace BetterSaveSlots.Core;
+namespace BetterSaveSlots.Localization;
 
 internal static class BetterSaveSlotsLoc
 {

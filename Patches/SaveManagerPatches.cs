@@ -1,10 +1,12 @@
-using BetterSaveSlots.Core;
+using BetterSaveSlots.Configuration;
+using BetterSaveSlots.Features.SaveSlots;
+using BetterSaveSlots.State;
 using HarmonyLib;
 using JmcModLib.Utils;
 using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.Saves.Managers;
 
-namespace BetterSaveSlots.Patches;
+namespace BetterSaveSlots.Patches.SaveManagement;
 
 [HarmonyPatch(typeof(SaveManager))]
 internal static class SaveManagerPatches

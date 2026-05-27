@@ -4,7 +4,7 @@ using MegaCrit.Sts2.Core.Saves;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace BetterSaveSlots.Core;
+namespace BetterSaveSlots.State;
 
 internal static class BetterSaveSlotsState
 {

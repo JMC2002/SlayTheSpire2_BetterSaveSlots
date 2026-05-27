@@ -1,4 +1,4 @@
-namespace BetterSaveSlots.Core;
+namespace BetterSaveSlots.Features.SaveSlots;
 
 public enum SaveSlotMode
 {

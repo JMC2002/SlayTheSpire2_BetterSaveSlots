@@ -1,7 +1,7 @@
 using JmcModLib.Config;
 using JmcModLib.Config.UI;
 
-namespace BetterSaveSlots.Core;
+namespace BetterSaveSlots.Configuration;
 
 public static class BetterSaveSlotsSettings
 {

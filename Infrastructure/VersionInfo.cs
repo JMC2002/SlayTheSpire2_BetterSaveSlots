@@ -1,4 +1,4 @@
-namespace BetterSaveSlots.Core;
+namespace BetterSaveSlots.Infrastructure;
 
 public static class VersionInfo
 {
