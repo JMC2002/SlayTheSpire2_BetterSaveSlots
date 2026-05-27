@@ -34,6 +34,7 @@ internal static partial class ProfileScreenPatches
     private const float FallbackButtonWidth = 72f;
     private const float FallbackButtonHeight = 72f;
     private const float SlotActionBottomGap = 30f;
+    private const int DeferredLayoutFrames = 2;
 
     private static readonly ConditionalWeakTable<NProfileScreen, ProfileScreenState> States = new();
     private static readonly List<WeakReference<NProfileScreen>> KnownScreens = [];
@@ -61,6 +62,7 @@ internal static partial class ProfileScreenPatches
     {
         Install(__instance);
         UpdateScreen(__instance, preferCurrentProfile: true);
+        QueueDeferredLayoutUpdate(__instance);
     }
 
     [HarmonyPatch(typeof(NSubmenu), nameof(NSubmenu.OnSubmenuClosed))]
@@ -177,6 +179,55 @@ internal static partial class ProfileScreenPatches
 
         EnsureSlotControls(screen);
         UpdateScreen(screen, preferCurrentProfile: true);
+        QueueDeferredLayoutUpdate(screen);
+    }
+
+    private static void QueueDeferredLayoutUpdate(NProfileScreen screen)
+    {
+        if (!States.TryGetValue(screen, out ProfileScreenState? state) || state.DeferredLayoutUpdateQueued)
+        {
+            return;
+        }
+
+        state.DeferredLayoutUpdateQueued = true;
+        _ = TaskHelper.RunSafely(UpdateScreenAfterLayoutAsync(screen));
+    }
+
+    private static async Task UpdateScreenAfterLayoutAsync(NProfileScreen screen)
+    {
+        try
+        {
+            for (int i = 0; i < DeferredLayoutFrames; i++)
+            {
+                if (!GodotObject.IsInstanceValid(screen))
+                {
+                    return;
+                }
+
+                SceneTree? tree = screen.GetTree();
+                if (tree == null)
+                {
+                    return;
+                }
+
+                await screen.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            }
+
+            if (!GodotObject.IsInstanceValid(screen))
+            {
+                return;
+            }
+
+            EnsureSlotControls(screen);
+            UpdateScreen(screen, preferCurrentProfile: false);
+        }
+        finally
+        {
+            if (GodotObject.IsInstanceValid(screen) && States.TryGetValue(screen, out ProfileScreenState? state))
+            {
+                state.DeferredLayoutUpdateQueued = false;
+            }
+        }
     }
 
     private static void EnsureSlotControls(NProfileScreen screen)

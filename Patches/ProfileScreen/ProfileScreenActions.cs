@@ -21,6 +21,7 @@ internal static partial class ProfileScreenPatches
         int pageCount = GetPageCount();
         state.PageIndex = Math.Clamp(state.PageIndex + delta, 0, pageCount - 1);
         UpdateScreen(screen, preferCurrentProfile: false);
+        QueueDeferredLayoutUpdate(screen);
     }
 
     private static void ClearCopiedProfile(NProfileScreen screen, bool refresh, string reason)
@@ -37,6 +38,7 @@ internal static partial class ProfileScreenPatches
         if (refresh && GodotObject.IsInstanceValid(screen))
         {
             UpdateScreen(screen, preferCurrentProfile: false);
+            QueueDeferredLayoutUpdate(screen);
         }
     }
 
@@ -56,6 +58,7 @@ internal static partial class ProfileScreenPatches
             state.CopiedProfileId = profileId;
             ModLogger.Info($"已选择复制源存档槽：{profileId}。");
             UpdateScreen(screen, preferCurrentProfile: false);
+            QueueDeferredLayoutUpdate(screen);
             return;
         }
 

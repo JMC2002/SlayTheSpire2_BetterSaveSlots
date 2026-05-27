@@ -23,6 +23,8 @@ internal static partial class ProfileScreenPatches
 
         public int? CopiedProfileId { get; set; }
 
+        public bool DeferredLayoutUpdateQueued { get; set; }
+
         public List<NDeleteProfileButton> CopyPasteButtons { get; } = [];
 
         public List<NDeleteProfileButton> ImportButtons { get; } = [];

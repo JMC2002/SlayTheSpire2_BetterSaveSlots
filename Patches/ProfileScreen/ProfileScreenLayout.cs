@@ -133,7 +133,7 @@ internal static partial class ProfileScreenPatches
             SetActionButtonState(state.PreviousPageButton, hasPrevious, hasPrevious);
             if (hasPrevious)
             {
-                AttachPageButton(state.PreviousPageButton, profileButtons[pageStart], deleteButtons[pageStart], isPrevious: true);
+                PositionPageButton(state.PreviousPageButton, profileButtons[pageStart], deleteButtons[pageStart], isPrevious: true);
                 SetPageButtonFocus(state.PreviousPageButton, profileButtons[pageStart], isPrevious: true);
                 profileButtons[pageStart].FocusNeighborLeft = state.PreviousPageButton.GetPath();
             }
@@ -145,7 +145,7 @@ internal static partial class ProfileScreenPatches
             if (hasNext)
             {
                 int lastIndex = Math.Max(pageStart, pageEnd - 1);
-                AttachPageButton(state.NextPageButton, profileButtons[lastIndex], deleteButtons[lastIndex], isPrevious: false);
+                PositionPageButton(state.NextPageButton, profileButtons[lastIndex], deleteButtons[lastIndex], isPrevious: false);
                 SetPageButtonFocus(state.NextPageButton, profileButtons[lastIndex], isPrevious: false);
                 profileButtons[lastIndex].FocusNeighborRight = state.NextPageButton.GetPath();
             }
@@ -154,8 +154,7 @@ internal static partial class ProfileScreenPatches
 
     private static void PositionButtonInSlot(NDeleteProfileButton actionButton, NProfileButton slotButton, float xOffset)
     {
-        AttachToSlot(actionButton, slotButton);
-        actionButton.Position = GetDeleteButtonSlotOffset(slotButton, actionButton) + new Vector2(xOffset, 0f);
+        actionButton.GlobalPosition = GetSlotActionGlobalPosition(slotButton, actionButton, xOffset);
     }
 
     private static void PositionCompanionButton(
@@ -164,40 +163,24 @@ internal static partial class ProfileScreenPatches
         NDeleteProfileButton anchorDeleteButton,
         float xOffset)
     {
-        AttachToSlot(actionButton, slotButton);
-        Vector2 anchorPosition = GetDeleteButtonAnchorPosition(slotButton, anchorDeleteButton);
-        actionButton.Position = AlignButtonToAnchorCenter(anchorPosition, anchorDeleteButton, actionButton, xOffset);
+        Vector2 anchorPosition = GetDeleteButtonAnchorGlobalPosition(slotButton, anchorDeleteButton);
+        actionButton.GlobalPosition = AlignButtonToAnchorCenter(anchorPosition, anchorDeleteButton, actionButton, xOffset);
     }
 
-    private static void AttachPageButton(
+    private static void PositionPageButton(
         NDeleteProfileButton pageButton,
         NProfileButton slotButton,
         NDeleteProfileButton anchorDeleteButton,
         bool isPrevious)
     {
-        if (pageButton.GetParent() != slotButton)
-        {
-            pageButton.GetParent()?.RemoveChild(pageButton);
-            slotButton.AddChild(pageButton);
-        }
-
-        Vector2 localDeletePosition = GetDeleteButtonAnchorPosition(slotButton, anchorDeleteButton);
+        Rect2 slotRect = GetSlotGlobalRect(slotButton);
+        Vector2 deletePosition = GetDeleteButtonAnchorGlobalPosition(slotButton, anchorDeleteButton);
         float buttonWidth = GetButtonWidth(pageButton);
-        float slotWidth = GetSlotWidth(slotButton);
-        float x = isPrevious ? -buttonWidth - PageButtonGap : slotWidth + PageButtonGap;
-        float y = AlignButtonToAnchorCenter(localDeletePosition, anchorDeleteButton, pageButton, centerOffsetX: 0f).Y;
-        pageButton.Position = new Vector2(x, y);
-    }
-
-    private static void AttachToSlot(Control control, NProfileButton slotButton)
-    {
-        if (control.GetParent() == slotButton)
-        {
-            return;
-        }
-
-        control.GetParent()?.RemoveChild(control);
-        slotButton.AddChild(control);
+        float x = isPrevious
+            ? slotRect.Position.X - buttonWidth - PageButtonGap
+            : slotRect.Position.X + slotRect.Size.X + PageButtonGap;
+        float y = AlignButtonToAnchorCenter(deletePosition, anchorDeleteButton, pageButton, centerOffsetX: 0f).Y;
+        pageButton.GlobalPosition = new Vector2(x, y);
     }
 
     private static bool IsExtendedDeleteButton(NDeleteProfileButton button)
@@ -205,20 +188,15 @@ internal static partial class ProfileScreenPatches
         return button.Name.ToString().StartsWith("BetterSaveSlotsDeleteProfileButton", StringComparison.Ordinal);
     }
 
-    private static Vector2 GetDeleteButtonAnchorPosition(NProfileButton slotButton, NDeleteProfileButton anchorDeleteButton)
+    private static Vector2 GetDeleteButtonAnchorGlobalPosition(NProfileButton slotButton, NDeleteProfileButton anchorDeleteButton)
     {
-        if (anchorDeleteButton.GetParent() == slotButton)
-        {
-            return anchorDeleteButton.Position;
-        }
-
         Rect2 anchorRect = anchorDeleteButton.GetGlobalRect();
         if (anchorRect.Size.X > 10f && anchorRect.Size.Y > 10f)
         {
-            return anchorRect.Position - slotButton.GetGlobalRect().Position;
+            return anchorRect.Position;
         }
 
-        return GetDeleteButtonSlotOffset(slotButton, anchorDeleteButton);
+        return GetSlotActionGlobalPosition(slotButton, anchorDeleteButton, xOffset: 0f);
     }
 
     private static Vector2 AlignButtonToAnchorCenter(
@@ -309,10 +287,23 @@ internal static partial class ProfileScreenPatches
         return button.Size.Y > 10f ? button.Size.Y : FallbackButtonHeight;
     }
 
-    private static Vector2 GetDeleteButtonSlotOffset(Control slotButton, Control actionButton)
+    private static Rect2 GetSlotGlobalRect(Control slotButton)
     {
-        float x = (GetSlotWidth(slotButton) - GetButtonWidth(actionButton)) / 2f;
-        float y = GetSlotHeight(slotButton) + SlotActionBottomGap;
+        Rect2 slotRect = slotButton.GetGlobalRect();
+        Vector2 slotSize = new(GetSlotWidth(slotButton), GetSlotHeight(slotButton));
+        if (slotRect.Size.X <= 10f || slotRect.Size.Y <= 10f)
+        {
+            slotRect.Size = slotSize;
+        }
+
+        return slotRect;
+    }
+
+    private static Vector2 GetSlotActionGlobalPosition(Control slotButton, Control actionButton, float xOffset)
+    {
+        Rect2 slotRect = GetSlotGlobalRect(slotButton);
+        float x = slotRect.Position.X + (slotRect.Size.X - GetButtonWidth(actionButton)) / 2f + xOffset;
+        float y = slotRect.Position.Y + slotRect.Size.Y + SlotActionBottomGap;
         return new Vector2(x, y);
     }
 
