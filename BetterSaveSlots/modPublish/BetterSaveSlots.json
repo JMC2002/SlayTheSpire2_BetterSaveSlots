@@ -2,7 +2,7 @@
   "id": "BetterSaveSlots",
   "name": "BetterSaveSlots",
   "author": "JMC",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "增强存档槽：支持复制粘贴、普通存档导入 MOD、可配置扩展槽位与分页显示；有问题反馈B站JMC丶或者Github，二次分发请注明来源",
   "has_pck": true,
   "has_dll": true,
