@@ -8,6 +8,7 @@ using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
+using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.Screens.ProfileScreen;
 using MegaCrit.Sts2.Core.Saves;
 using System.Runtime.CompilerServices;
@@ -56,6 +57,16 @@ internal static class ProfileScreenPatches
     {
         Install(__instance);
         UpdateScreen(__instance, preferCurrentProfile: true);
+    }
+
+    [HarmonyPatch(typeof(NSubmenu), nameof(NSubmenu.OnSubmenuClosed))]
+    [HarmonyPostfix]
+    private static void NSubmenuClosedPostfix(NSubmenu __instance)
+    {
+        if (__instance is NProfileScreen screen)
+        {
+            ClearCopiedProfile(screen, refresh: false, "离开存档界面");
+        }
     }
 
     [HarmonyPatch(typeof(NProfileIcon), nameof(NProfileIcon.SetProfileId))]
@@ -155,6 +166,7 @@ internal static class ProfileScreenPatches
 
         screen.TreeExiting += () =>
         {
+            ClearCopiedProfile(screen, refresh: false, "销毁存档界面");
             States.Remove(screen);
             RemoveActionButtonsForScreen(screen);
         };
@@ -292,7 +304,7 @@ internal static class ProfileScreenPatches
             ?? throw new InvalidOperationException("复制存档槽操作按钮失败。");
         button.Name = name;
         button.Visible = false;
-        button.ZIndex = 100;
+        button.ZIndex = template.ZIndex;
         template.GetParent().AddChild(button);
         button.Position = template.Position;
         SetActionButtonIcon(button, iconPath);
@@ -344,6 +356,23 @@ internal static class ProfileScreenPatches
         UpdateScreen(screen, preferCurrentProfile: false);
     }
 
+    private static void ClearCopiedProfile(NProfileScreen screen, bool refresh, string reason)
+    {
+        if (!States.TryGetValue(screen, out ProfileScreenState? state) || !state.CopiedProfileId.HasValue)
+        {
+            return;
+        }
+
+        int copiedProfileId = state.CopiedProfileId.Value;
+        state.CopiedProfileId = null;
+        ModLogger.Info($"已取消复制源存档槽：{copiedProfileId}，原因={reason}。");
+
+        if (refresh && GodotObject.IsInstanceValid(screen))
+        {
+            UpdateScreen(screen, preferCurrentProfile: false);
+        }
+    }
+
     private static async Task OnCopyPasteButtonPressedAsync(NProfileScreen screen, int profileId)
     {
         ProfileScreenState state = States.GetOrCreateValue(screen);
@@ -366,6 +395,7 @@ internal static class ProfileScreenPatches
         int sourceProfileId = copiedProfileId.Value;
         if (sourceProfileId == profileId)
         {
+            ClearCopiedProfile(screen, refresh: true, "再次点击复制源");
             return;
         }
 
@@ -675,19 +705,22 @@ internal static class ProfileScreenPatches
                 deleteButtons[i].Visible = onCurrentPage
                     && NProfileScreen.forceShowProfileAsDeleted != profileId
                     && modProfileHasSave;
-                PositionSlotActionButton(deleteButtons[i], profileButtons[i], xOffset: 0f);
+                if (IsExtendedDeleteButton(deleteButtons[i]))
+                {
+                    PositionButtonInSlot(deleteButtons[i], profileButtons[i], xOffset: 0f);
+                }
             }
 
             if (i < state.CopyPasteButtons.Count)
             {
                 UpdateCopyPasteButton(state.CopyPasteButtons[i], state, profileId, onCurrentPage, modProfileHasSave);
-                PositionSlotActionButton(state.CopyPasteButtons[i], profileButtons[i], -SlotActionSpacing);
+                PositionCompanionButton(state.CopyPasteButtons[i], profileButtons[i], deleteButtons[i], -SlotActionSpacing);
             }
 
             if (i < state.ImportButtons.Count)
             {
                 UpdateImportButton(state.ImportButtons[i], onCurrentPage);
-                PositionSlotActionButton(state.ImportButtons[i], profileButtons[i], SlotActionSpacing);
+                PositionCompanionButton(state.ImportButtons[i], profileButtons[i], deleteButtons[i], SlotActionSpacing);
             }
         }
 
@@ -719,8 +752,8 @@ internal static class ProfileScreenPatches
         if (state.CopiedProfileId.Value == profileId)
         {
             SetActionButtonIcon(button, CopyIconPath);
-            SetActionButtonHoverText(button, "UI.copied");
-            SetActionButtonState(button, visible: true, enabled: false);
+            SetActionButtonHoverText(button, "UI.cancel_copy");
+            SetActionButtonState(button, visible: true, enabled: true);
             return;
         }
 
@@ -772,12 +805,21 @@ internal static class ProfileScreenPatches
         }
     }
 
-    private static void PositionSlotActionButton(NDeleteProfileButton actionButton, NProfileButton slotButton, float xOffset)
+    private static void PositionButtonInSlot(NDeleteProfileButton actionButton, NProfileButton slotButton, float xOffset)
     {
-        Vector2 globalPosition = slotButton.GetGlobalRect().Position
-            + GetDeleteButtonSlotOffset(slotButton, actionButton)
+        AttachToSlot(actionButton, slotButton);
+        actionButton.Position = GetDeleteButtonSlotOffset(slotButton, actionButton) + new Vector2(xOffset, 0f);
+    }
+
+    private static void PositionCompanionButton(
+        NDeleteProfileButton actionButton,
+        NProfileButton slotButton,
+        NDeleteProfileButton anchorDeleteButton,
+        float xOffset)
+    {
+        AttachToSlot(actionButton, slotButton);
+        actionButton.Position = GetDeleteButtonAnchorPosition(slotButton, anchorDeleteButton, actionButton)
             + new Vector2(xOffset, 0f);
-        actionButton.Position = ToParentLocalPosition(actionButton, globalPosition);
     }
 
     private static void AttachPageButton(
@@ -792,11 +834,46 @@ internal static class ProfileScreenPatches
             slotButton.AddChild(pageButton);
         }
 
-        Vector2 localDeletePosition = anchorDeleteButton.GetGlobalRect().Position - slotButton.GetGlobalRect().Position;
+        Vector2 localDeletePosition = GetDeleteButtonAnchorPosition(slotButton, anchorDeleteButton, pageButton);
         float buttonWidth = GetButtonWidth(pageButton);
         float slotWidth = GetSlotWidth(slotButton);
         float x = isPrevious ? -buttonWidth - PageButtonGap : slotWidth + PageButtonGap;
         pageButton.Position = new Vector2(x, localDeletePosition.Y);
+    }
+
+    private static void AttachToSlot(Control control, NProfileButton slotButton)
+    {
+        if (control.GetParent() == slotButton)
+        {
+            return;
+        }
+
+        control.GetParent()?.RemoveChild(control);
+        slotButton.AddChild(control);
+    }
+
+    private static bool IsExtendedDeleteButton(NDeleteProfileButton button)
+    {
+        return button.Name.ToString().StartsWith("BetterSaveSlotsDeleteProfileButton", StringComparison.Ordinal);
+    }
+
+    private static Vector2 GetDeleteButtonAnchorPosition(
+        NProfileButton slotButton,
+        NDeleteProfileButton anchorDeleteButton,
+        Control fallbackButton)
+    {
+        if (anchorDeleteButton.GetParent() == slotButton)
+        {
+            return anchorDeleteButton.Position;
+        }
+
+        Rect2 anchorRect = anchorDeleteButton.GetGlobalRect();
+        if (anchorRect.Size.X > 10f && anchorRect.Size.Y > 10f)
+        {
+            return anchorRect.Position - slotButton.GetGlobalRect().Position;
+        }
+
+        return GetDeleteButtonSlotOffset(slotButton, fallbackButton);
     }
 
     private static void SetPageButtonFocus(NDeleteProfileButton pageButton, Control slotButton, bool isPrevious)
@@ -873,13 +950,6 @@ internal static class ProfileScreenPatches
         float x = (GetSlotWidth(slotButton) - GetButtonWidth(actionButton)) / 2f;
         float y = GetSlotHeight(slotButton) + SlotActionBottomGap;
         return new Vector2(x, y);
-    }
-
-    private static Vector2 ToParentLocalPosition(Control control, Vector2 globalPosition)
-    {
-        return control.GetParent() is CanvasItem parent
-            ? parent.GetGlobalTransform().AffineInverse() * globalPosition
-            : globalPosition;
     }
 
     private static void UpdateFocusNeighbors(

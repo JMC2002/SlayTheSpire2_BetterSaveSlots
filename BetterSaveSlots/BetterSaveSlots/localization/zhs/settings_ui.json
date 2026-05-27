@@ -5,6 +5,7 @@
   "EXTENSION.BETTERSAVESLOTS.UI.copy": "复制",
   "EXTENSION.BETTERSAVESLOTS.UI.paste": "粘贴",
   "EXTENSION.BETTERSAVESLOTS.UI.copied": "已复制",
+  "EXTENSION.BETTERSAVESLOTS.UI.cancel_copy": "取消复制",
   "EXTENSION.BETTERSAVESLOTS.UI.import": "导入普通存档",
   "EXTENSION.BETTERSAVESLOTS.UI.previous_page": "上一页",
   "EXTENSION.BETTERSAVESLOTS.UI.next_page": "下一页",
