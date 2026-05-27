@@ -107,6 +107,11 @@ internal static partial class ProfileScreenPatches
     {
         if (!ActionButtons.TryGetValue(__instance.GetInstanceId(), out ActionButtonInfo? actionInfo))
         {
+            if (IsExtendedDeleteButton(__instance))
+            {
+                return true;
+            }
+
             if (__instance.Name.ToString().StartsWith("BetterSaveSlots", StringComparison.Ordinal))
             {
                 ModLogger.Warn($"BetterSaveSlots 自定义按钮失去动作注册，已阻止落回原生删除逻辑：{__instance.Name}。");
