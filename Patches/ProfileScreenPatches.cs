@@ -26,7 +26,9 @@ internal static class ProfileScreenPatches
     private const float SlotActionSpacing = 86f;
     private const float PageButtonGap = 24f;
     private const float FallbackSlotWidth = 450f;
+    private const float FallbackSlotHeight = 568f;
     private const float FallbackButtonWidth = 72f;
+    private const float SlotActionBottomGap = 30f;
 
     private static readonly ConditionalWeakTable<NProfileScreen, ProfileScreenState> States = new();
     private static readonly List<WeakReference<NProfileScreen>> KnownScreens = [];
@@ -673,18 +675,19 @@ internal static class ProfileScreenPatches
                 deleteButtons[i].Visible = onCurrentPage
                     && NProfileScreen.forceShowProfileAsDeleted != profileId
                     && modProfileHasSave;
+                PositionSlotActionButton(deleteButtons[i], profileButtons[i], xOffset: 0f);
             }
 
             if (i < state.CopyPasteButtons.Count)
             {
                 UpdateCopyPasteButton(state.CopyPasteButtons[i], state, profileId, onCurrentPage, modProfileHasSave);
-                PositionSlotActionButton(state.CopyPasteButtons[i], deleteButtons[i], -SlotActionSpacing);
+                PositionSlotActionButton(state.CopyPasteButtons[i], profileButtons[i], -SlotActionSpacing);
             }
 
             if (i < state.ImportButtons.Count)
             {
                 UpdateImportButton(state.ImportButtons[i], onCurrentPage);
-                PositionSlotActionButton(state.ImportButtons[i], deleteButtons[i], SlotActionSpacing);
+                PositionSlotActionButton(state.ImportButtons[i], profileButtons[i], SlotActionSpacing);
             }
         }
 
@@ -769,9 +772,12 @@ internal static class ProfileScreenPatches
         }
     }
 
-    private static void PositionSlotActionButton(NDeleteProfileButton actionButton, NDeleteProfileButton deleteButton, float xOffset)
+    private static void PositionSlotActionButton(NDeleteProfileButton actionButton, NProfileButton slotButton, float xOffset)
     {
-        actionButton.Position = deleteButton.Position + new Vector2(xOffset, 0f);
+        Vector2 globalPosition = slotButton.GetGlobalRect().Position
+            + GetDeleteButtonSlotOffset(slotButton, actionButton)
+            + new Vector2(xOffset, 0f);
+        actionButton.Position = ToParentLocalPosition(actionButton, globalPosition);
     }
 
     private static void AttachPageButton(
@@ -852,9 +858,28 @@ internal static class ProfileScreenPatches
         return slotButton.Size.X > 10f ? slotButton.Size.X : FallbackSlotWidth;
     }
 
+    private static float GetSlotHeight(Control slotButton)
+    {
+        return slotButton.Size.Y > 10f ? slotButton.Size.Y : FallbackSlotHeight;
+    }
+
     private static float GetButtonWidth(Control button)
     {
         return button.Size.X > 10f ? button.Size.X : FallbackButtonWidth;
+    }
+
+    private static Vector2 GetDeleteButtonSlotOffset(Control slotButton, Control actionButton)
+    {
+        float x = (GetSlotWidth(slotButton) - GetButtonWidth(actionButton)) / 2f;
+        float y = GetSlotHeight(slotButton) + SlotActionBottomGap;
+        return new Vector2(x, y);
+    }
+
+    private static Vector2 ToParentLocalPosition(Control control, Vector2 globalPosition)
+    {
+        return control.GetParent() is CanvasItem parent
+            ? parent.GetGlobalTransform().AffineInverse() * globalPosition
+            : globalPosition;
     }
 
     private static void UpdateFocusNeighbors(
