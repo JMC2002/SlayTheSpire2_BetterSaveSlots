@@ -3,7 +3,11 @@ using Godot;
 using HarmonyLib;
 using JmcModLib.Prefabs;
 using JmcModLib.Utils;
+using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Helpers;
+using MegaCrit.Sts2.Core.Nodes.CommonUi;
+using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
+using MegaCrit.Sts2.Core.Nodes.Multiplayer;
 using MegaCrit.Sts2.Core.Nodes.Screens.ProfileScreen;
 using MegaCrit.Sts2.Core.Saves;
 using System.Runtime.CompilerServices;
@@ -13,8 +17,22 @@ namespace BetterSaveSlots.Patches;
 [HarmonyPatch]
 internal static class ProfileScreenPatches
 {
+    private const string CopyIconPath = "res://BetterSaveSlots/ui/profile/copy_icon.png";
+    private const string PasteIconPath = "res://BetterSaveSlots/ui/profile/paste_icon.png";
+    private const string ImportIconPath = "res://BetterSaveSlots/ui/profile/import_icon.png";
+    private const string PreviousIconPath = "res://BetterSaveSlots/ui/profile/prev_icon.png";
+    private const string NextIconPath = "res://BetterSaveSlots/ui/profile/next_icon.png";
+
+    private const float SlotActionSpacing = 86f;
+    private const float PageButtonGap = 24f;
+    private const float FallbackSlotWidth = 450f;
+    private const float FallbackButtonWidth = 72f;
+
     private static readonly ConditionalWeakTable<NProfileScreen, ProfileScreenState> States = new();
     private static readonly List<WeakReference<NProfileScreen>> KnownScreens = [];
+    private static readonly Dictionary<ulong, ActionButtonInfo> ActionButtons = [];
+    private static readonly Dictionary<string, Texture2D?> IconCache = [];
+
     private static bool eventsSubscribed;
 
     private static readonly AccessTools.FieldRef<NProfileScreen, List<NProfileButton>> ProfileButtonsRef =
@@ -64,6 +82,39 @@ internal static class ProfileScreenPatches
         }
     }
 
+    [HarmonyPatch(typeof(NDeleteProfileButton), "OnRelease")]
+    [HarmonyPrefix]
+    private static bool NDeleteProfileButtonOnReleasePrefix(NDeleteProfileButton __instance)
+    {
+        if (!ActionButtons.TryGetValue(__instance.GetInstanceId(), out ActionButtonInfo? actionInfo))
+        {
+            return true;
+        }
+
+        if (!actionInfo.Screen.TryGetTarget(out NProfileScreen? screen) || !GodotObject.IsInstanceValid(screen))
+        {
+            return false;
+        }
+
+        switch (actionInfo.Kind)
+        {
+            case ProfileActionKind.CopyPaste:
+                _ = TaskHelper.RunSafely(OnCopyPasteButtonPressedAsync(screen, actionInfo.ProfileId));
+                break;
+            case ProfileActionKind.Import:
+                _ = TaskHelper.RunSafely(OnImportButtonPressedAsync(screen, actionInfo.ProfileId));
+                break;
+            case ProfileActionKind.PreviousPage:
+                TurnPage(screen, -1);
+                break;
+            case ProfileActionKind.NextPage:
+                TurnPage(screen, 1);
+                break;
+        }
+
+        return false;
+    }
+
     public static void RefreshKnownScreens()
     {
         for (int i = KnownScreens.Count - 1; i >= 0; i--)
@@ -86,7 +137,7 @@ internal static class ProfileScreenPatches
             return;
         }
 
-        ProfileScreenState state = States.GetValue(screen, _ => new ProfileScreenState());
+        _ = States.GetValue(screen, _ => new ProfileScreenState());
         KnownScreens.Add(new WeakReference<NProfileScreen>(screen));
         if (!eventsSubscribed)
         {
@@ -94,13 +145,9 @@ internal static class ProfileScreenPatches
             eventsSubscribed = true;
         }
 
-        screen.TreeExiting += () =>
-        {
-            States.Remove(screen);
-        };
+        screen.TreeExiting += () => States.Remove(screen);
 
         EnsureSlotControls(screen);
-        CreatePageButtons(screen, state);
         UpdateScreen(screen, preferCurrentProfile: true);
     }
 
@@ -114,12 +161,35 @@ internal static class ProfileScreenPatches
         EnsureDeleteButtons(deleteButtons, desiredCount);
 
         ProfileScreenState state = States.GetOrCreateValue(screen);
-        while (state.ActionButtons.Count < desiredCount)
+        while (state.CopyPasteButtons.Count < desiredCount)
         {
-            int profileId = state.ActionButtons.Count + 1;
-            Godot.Button actionButton = CreateActionButton(profileButtons[profileId - 1], profileId, screen);
-            state.ActionButtons.Add(actionButton);
+            int profileId = state.CopyPasteButtons.Count + 1;
+            NDeleteProfileButton button = CreateActionButton(
+                screen,
+                deleteButtons[profileId - 1],
+                $"BetterSaveSlotsCopyPasteButton{profileId}",
+                ProfileActionKind.CopyPaste,
+                profileId,
+                CopyIconPath,
+                "UI.copy");
+            state.CopyPasteButtons.Add(button);
         }
+
+        while (state.ImportButtons.Count < desiredCount)
+        {
+            int profileId = state.ImportButtons.Count + 1;
+            NDeleteProfileButton button = CreateActionButton(
+                screen,
+                deleteButtons[profileId - 1],
+                $"BetterSaveSlotsImportButton{profileId}",
+                ProfileActionKind.Import,
+                profileId,
+                ImportIconPath,
+                "UI.import");
+            state.ImportButtons.Add(button);
+        }
+
+        EnsurePageButtons(screen, state, deleteButtons);
     }
 
     private static void EnsureProfileButtons(List<NProfileButton> profileButtons, int desiredCount)
@@ -167,23 +237,67 @@ internal static class ProfileScreenPatches
         }
     }
 
-    private static Godot.Button CreateActionButton(NProfileButton profileButton, int profileId, NProfileScreen screen)
+    private static void EnsurePageButtons(
+        NProfileScreen screen,
+        ProfileScreenState state,
+        List<NDeleteProfileButton> deleteButtons)
     {
-        Godot.Button button = new()
+        if (state.PreviousPageButton == null)
         {
-            Name = $"BetterSaveSlotsCopyPasteButton{profileId}",
-            Text = BetterSaveSlotsLoc.Text("UI.copy"),
-            CustomMinimumSize = new Vector2(150f, 42f),
-            Size = new Vector2(150f, 42f),
-            Position = GetActionButtonPosition(profileButton),
-            ZIndex = 100,
-            FocusMode = Control.FocusModeEnum.All,
-            MouseFilter = Control.MouseFilterEnum.Stop
-        };
+            state.PreviousPageButton = CreateActionButton(
+                screen,
+                deleteButtons[0],
+                "BetterSaveSlotsPreviousPageButton",
+                ProfileActionKind.PreviousPage,
+                profileId: 0,
+                PreviousIconPath,
+                "UI.previous_page");
+        }
 
-        button.Pressed += () => _ = TaskHelper.RunSafely(OnActionButtonPressedAsync(screen, profileId));
-        profileButton.AddChild(button);
+        if (state.NextPageButton == null)
+        {
+            state.NextPageButton = CreateActionButton(
+                screen,
+                deleteButtons[Math.Min(2, deleteButtons.Count - 1)],
+                "BetterSaveSlotsNextPageButton",
+                ProfileActionKind.NextPage,
+                profileId: 0,
+                NextIconPath,
+                "UI.next_page");
+        }
+    }
+
+    private static NDeleteProfileButton CreateActionButton(
+        NProfileScreen screen,
+        NDeleteProfileButton template,
+        string name,
+        ProfileActionKind kind,
+        int profileId,
+        string iconPath,
+        string hoverTextKey)
+    {
+        NDeleteProfileButton button = template.Duplicate() as NDeleteProfileButton
+            ?? throw new InvalidOperationException("复制存档槽操作按钮失败。");
+        button.Name = name;
+        button.Visible = false;
+        button.ZIndex = 100;
+        template.GetParent().AddChild(button);
+        button.Position = template.Position;
+        SetActionButtonIcon(button, iconPath);
+        SetActionButtonHoverText(button, hoverTextKey);
+        RegisterActionButton(button, screen, profileId, kind);
         return button;
+    }
+
+    private static void RegisterActionButton(
+        NDeleteProfileButton button,
+        NProfileScreen screen,
+        int profileId,
+        ProfileActionKind kind)
+    {
+        ulong instanceId = button.GetInstanceId();
+        ActionButtons[instanceId] = new ActionButtonInfo(new WeakReference<NProfileScreen>(screen), profileId, kind);
+        button.TreeExiting += () => ActionButtons.Remove(instanceId);
     }
 
     private static void RemoveDuplicatedBetterSaveSlotsControls(Node node)
@@ -198,67 +312,15 @@ internal static class ProfileScreenPatches
         }
     }
 
-    private static Vector2 GetActionButtonPosition(NProfileButton profileButton)
+    private static void TurnPage(NProfileScreen screen, int delta)
     {
-        float x = profileButton.Size.X > 220f ? profileButton.Size.X - 178f : 286f;
-        float y = profileButton.Size.Y > 120f ? 28f : 24f;
-        return new Vector2(x, y);
+        ProfileScreenState state = States.GetOrCreateValue(screen);
+        int pageCount = GetPageCount();
+        state.PageIndex = Math.Clamp(state.PageIndex + delta, 0, pageCount - 1);
+        UpdateScreen(screen, preferCurrentProfile: false);
     }
 
-    private static void CreatePageButtons(NProfileScreen screen, ProfileScreenState state)
-    {
-        if (state.PreviousPageButton != null || state.NextPageButton != null)
-        {
-            return;
-        }
-
-        List<NProfileButton> profileButtons = ProfileButtonsRef(screen);
-        if (profileButtons.Count < BetterSaveSlotsSettings.SlotsPerPage)
-        {
-            return;
-        }
-
-        Godot.Button previous = CreatePageButton("BetterSaveSlotsPreviousPageButton", "<");
-        Godot.Button next = CreatePageButton("BetterSaveSlotsNextPageButton", ">");
-
-        previous.Pressed += () =>
-        {
-            state.PageIndex = Math.Max(0, state.PageIndex - 1);
-            UpdateScreen(screen, preferCurrentProfile: false);
-        };
-        next.Pressed += () =>
-        {
-            int pageCount = GetPageCount();
-            state.PageIndex = Math.Min(pageCount - 1, state.PageIndex + 1);
-            UpdateScreen(screen, preferCurrentProfile: false);
-        };
-
-        NProfileButton leftTemplate = profileButtons[0];
-        NProfileButton rightTemplate = profileButtons[2];
-        previous.Position = leftTemplate.Position + new Vector2(-88f, Math.Max(210f, leftTemplate.Size.Y * 0.42f));
-        next.Position = rightTemplate.Position + new Vector2(rightTemplate.Size.X + 28f, Math.Max(210f, rightTemplate.Size.Y * 0.42f));
-
-        screen.AddChild(previous);
-        screen.AddChild(next);
-        state.PreviousPageButton = previous;
-        state.NextPageButton = next;
-    }
-
-    private static Godot.Button CreatePageButton(string name, string text)
-    {
-        return new Godot.Button
-        {
-            Name = name,
-            Text = text,
-            CustomMinimumSize = new Vector2(54f, 76f),
-            Size = new Vector2(54f, 76f),
-            ZIndex = 100,
-            FocusMode = Control.FocusModeEnum.All,
-            MouseFilter = Control.MouseFilterEnum.Stop
-        };
-    }
-
-    private static async Task OnActionButtonPressedAsync(NProfileScreen screen, int profileId)
+    private static async Task OnCopyPasteButtonPressedAsync(NProfileScreen screen, int profileId)
     {
         ProfileScreenState state = States.GetOrCreateValue(screen);
         int? copiedProfileId = state.CopiedProfileId;
@@ -291,7 +353,7 @@ internal static class ProfileScreenPatches
         bool targetHasSave = SaveSlotService.ProfileHasSave(profileId);
         if (targetHasSave)
         {
-            bool confirmed = await ConfirmOverwriteAsync(sourceProfileId, profileId);
+            bool confirmed = await ConfirmOverwriteAsync(sourceProfileId, profileId, "POPUP.COPY_OVERWRITE");
             if (!confirmed)
             {
                 ModLogger.Info($"用户取消覆盖存档槽：{sourceProfileId} -> {profileId}。");
@@ -325,21 +387,205 @@ internal static class ProfileScreenPatches
         }
     }
 
-    private static async Task<bool> ConfirmOverwriteAsync(int sourceProfileId, int targetProfileId)
+    private static async Task OnImportButtonPressedAsync(NProfileScreen screen, int targetProfileId)
+    {
+        if (!UserDataPathProvider.IsRunningModded)
+        {
+            await ShowMessageAsync("POPUP.IMPORT_NOT_MODDED.title", "POPUP.IMPORT_NOT_MODDED.body", "POPUP.ok");
+            return;
+        }
+
+        try
+        {
+            IReadOnlyList<int> sourceProfileIds = await SaveSlotService.GetImportableNormalProfileIdsAsync(
+                BetterSaveSlotsSettings.VanillaSlotCount);
+
+            if (sourceProfileIds.Count == 0)
+            {
+                await ShowMessageAsync("POPUP.IMPORT_EMPTY.title", "POPUP.IMPORT_EMPTY.body", "POPUP.ok");
+                return;
+            }
+
+            int? sourceProfileId = await ShowImportSourcePickerAsync(targetProfileId, sourceProfileIds);
+            if (!sourceProfileId.HasValue)
+            {
+                ModLogger.Info($"用户取消导入普通存档到 MOD {targetProfileId} 号槽。");
+                return;
+            }
+
+            await SaveSlotService.SyncKnownProfileFilesFromCloudAsync(
+                SaveSlotService.GetSaveStore(),
+                targetProfileId,
+                SaveSlotMode.Modded,
+                deleteLocalWhenCloudMissing: false);
+            bool targetHasSave = SaveSlotService.ProfileHasSave(targetProfileId);
+
+            if (targetHasSave)
+            {
+                bool confirmed = await ConfirmOverwriteAsync(
+                    sourceProfileId.Value,
+                    targetProfileId,
+                    "POPUP.IMPORT_OVERWRITE");
+                if (!confirmed)
+                {
+                    ModLogger.Info($"用户取消导入覆盖：普通 {sourceProfileId} -> MOD {targetProfileId}。");
+                    return;
+                }
+            }
+
+            await SaveSlotService.ImportNormalProfileToModdedAsync(
+                sourceProfileId.Value,
+                targetProfileId,
+                overwriteTarget: targetHasSave);
+
+            screen.Refresh();
+            BetterSaveSlotsEvents.RaiseProfilesChanged();
+            await ShowMessageAsync(
+                "POPUP.IMPORT_DONE.title",
+                "POPUP.IMPORT_DONE.body",
+                "POPUP.ok",
+                ("Source", sourceProfileId.Value),
+                ("Target", targetProfileId));
+        }
+        catch (Exception ex)
+        {
+            ModLogger.Error($"导入普通存档失败：目标 MOD {targetProfileId} 号槽。", ex);
+            await ShowMessageAsync("POPUP.IMPORT_FAILED.title", ex.Message, "POPUP.ok");
+        }
+    }
+
+    private static Task<int?> ShowImportSourcePickerAsync(int targetProfileId, IReadOnlyList<int> sourceProfileIds)
+    {
+        NModalContainer? modalContainer = NModalContainer.Instance;
+        if (modalContainer == null || modalContainer.OpenModal != null)
+        {
+            ModLogger.Warn("无法显示普通存档来源选择框：当前没有可用的模态容器或已有弹窗。");
+            return Task.FromResult<int?>(null);
+        }
+
+        NGenericPopup? popup = NGenericPopup.Create();
+        if (popup == null)
+        {
+            ModLogger.Warn("无法创建普通存档来源选择框。");
+            return Task.FromResult<int?>(null);
+        }
+
+        var completion = new TaskCompletionSource<int?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        popup.Connect(Node.SignalName.TreeExiting, Callable.From(() => completion.TrySetResult(null)));
+
+        try
+        {
+            modalContainer.Add(popup);
+            if (!ReferenceEquals(modalContainer.OpenModal, popup))
+            {
+                popup.QueueFree();
+                completion.TrySetResult(null);
+                return completion.Task;
+            }
+
+            ConfigureImportSourcePicker(popup.GetNode<NVerticalPopup>("VerticalPopup"), targetProfileId, sourceProfileIds, completion);
+            return completion.Task;
+        }
+        catch (Exception ex)
+        {
+            ModLogger.Error("显示普通存档来源选择框失败。", ex);
+            if (ReferenceEquals(modalContainer.OpenModal, popup))
+            {
+                modalContainer.Clear();
+            }
+            else
+            {
+                popup.QueueFree();
+            }
+
+            completion.TrySetResult(null);
+            return completion.Task;
+        }
+    }
+
+    private static void ConfigureImportSourcePicker(
+        NVerticalPopup popup,
+        int targetProfileId,
+        IReadOnlyList<int> sourceProfileIds,
+        TaskCompletionSource<int?> completion)
+    {
+        popup.SetText(
+            BetterSaveSlotsLoc.Text("POPUP.IMPORT_PICKER.title"),
+            BetterSaveSlotsLoc.Format("POPUP.IMPORT_PICKER.body", ("Target", targetProfileId)));
+
+        Node? buttonParent = popup.YesButton.GetParent();
+        List<(int SourceProfileId, NPopupYesNoButton Button)> extraSourceButtons = [];
+        if (buttonParent != null)
+        {
+            for (int index = 1; index < sourceProfileIds.Count; index++)
+            {
+                int sourceProfileId = sourceProfileIds[index];
+                NPopupYesNoButton sourceButton = popup.YesButton.Duplicate() as NPopupYesNoButton
+                    ?? throw new InvalidOperationException("复制普通存档来源按钮失败。");
+                sourceButton.Name = $"BetterSaveSlotsImportSource{sourceProfileId}";
+                buttonParent.AddChild(sourceButton);
+                extraSourceButtons.Add((sourceProfileId, sourceButton));
+            }
+        }
+
+        int firstSourceProfileId = sourceProfileIds[0];
+        popup.InitYesButton(
+            BetterSaveSlotsLoc.Loc("POPUP.IMPORT_SOURCE_BUTTON"),
+            _ => completion.TrySetResult(firstSourceProfileId));
+        popup.YesButton.SetText(BetterSaveSlotsLoc.Format("POPUP.IMPORT_SOURCE_BUTTON", ("Source", firstSourceProfileId)));
+
+        popup.InitNoButton(
+            BetterSaveSlotsLoc.Loc("POPUP.cancel"),
+            _ => completion.TrySetResult(null));
+        popup.NoButton.SetText(BetterSaveSlotsLoc.Text("POPUP.cancel"));
+
+        float rowHeight = Math.Max(
+            72f,
+            Math.Abs(popup.NoButton.Position.Y - popup.YesButton.Position.Y));
+        if (rowHeight < 72f)
+        {
+            rowHeight = Math.Max(72f, popup.YesButton.Size.Y + 18f);
+        }
+
+        Vector2 startPosition = popup.YesButton.Position;
+        popup.YesButton.Position = startPosition;
+
+        for (int index = 0; index < extraSourceButtons.Count; index++)
+        {
+            (int sourceProfileId, NPopupYesNoButton sourceButton) = extraSourceButtons[index];
+            sourceButton.Position = startPosition + new Vector2(0f, rowHeight * (index + 1));
+            sourceButton.SetText(BetterSaveSlotsLoc.Format("POPUP.IMPORT_SOURCE_BUTTON", ("Source", sourceProfileId)));
+            sourceButton.Connect(
+                NClickableControl.SignalName.Released,
+                Callable.From<NClickableControl>(_ => CompleteImportSourcePicker(completion, sourceProfileId)));
+        }
+
+        popup.NoButton.Position = startPosition + new Vector2(0f, rowHeight * sourceProfileIds.Count);
+    }
+
+    private static void CompleteImportSourcePicker(TaskCompletionSource<int?> completion, int? sourceProfileId)
+    {
+        if (completion.TrySetResult(sourceProfileId))
+        {
+            NModalContainer.Instance?.Clear();
+        }
+    }
+
+    private static async Task<bool> ConfirmOverwriteAsync(int sourceProfileId, int targetProfileId, string keyPrefix)
     {
         if (!JmcConfirmationPopup.IsAvailable)
         {
-            ModLogger.Warn($"复制存档需要确认覆盖 {targetProfileId} 号槽，但原生确认框当前不可用。");
+            ModLogger.Warn($"存档操作需要确认覆盖 {targetProfileId} 号槽，但原生确认框当前不可用。");
             return false;
         }
 
         return await JmcConfirmationPopup.ShowConfirmationAsync(
-            BetterSaveSlotsLoc.Text("POPUP.COPY_OVERWRITE.title"),
+            BetterSaveSlotsLoc.Text($"{keyPrefix}.title"),
             BetterSaveSlotsLoc.Format(
-                "POPUP.COPY_OVERWRITE.body",
+                $"{keyPrefix}.body",
                 ("Source", sourceProfileId),
                 ("Target", targetProfileId)),
-            BetterSaveSlotsLoc.Text("POPUP.COPY_OVERWRITE.confirm"),
+            BetterSaveSlotsLoc.Text($"{keyPrefix}.confirm"),
             BetterSaveSlotsLoc.Text("POPUP.cancel"));
     }
 
@@ -384,7 +630,7 @@ internal static class ProfileScreenPatches
 
         state.PageIndex = Math.Clamp(state.PageIndex, 0, pageCount - 1);
         int pageStart = state.PageIndex * BetterSaveSlotsSettings.SlotsPerPage;
-        int pageEnd = pageStart + BetterSaveSlotsSettings.SlotsPerPage;
+        int pageEnd = Math.Min(pageStart + BetterSaveSlotsSettings.SlotsPerPage, slotCount);
 
         if (state.CopiedProfileId is { } copiedId && !SaveSlotService.ProfileHasSave(copiedId))
         {
@@ -396,69 +642,196 @@ internal static class ProfileScreenPatches
             bool inConfiguredRange = i < slotCount;
             bool onCurrentPage = inConfiguredRange && i >= pageStart && i < pageEnd;
             int profileId = i + 1;
+            bool modProfileHasSave = inConfiguredRange && SaveSlotService.ProfileHasSave(profileId);
 
             profileButtons[i].Visible = onCurrentPage;
             if (i < deleteButtons.Count)
             {
                 deleteButtons[i].Visible = onCurrentPage
                     && NProfileScreen.forceShowProfileAsDeleted != profileId
-                    && SaveSlotService.ProfileHasSave(profileId);
+                    && modProfileHasSave;
             }
 
-            if (i < state.ActionButtons.Count)
+            if (i < state.CopyPasteButtons.Count)
             {
-                UpdateActionButton(state.ActionButtons[i], state, profileId, onCurrentPage);
+                UpdateCopyPasteButton(state.CopyPasteButtons[i], state, profileId, onCurrentPage, modProfileHasSave);
+                PositionSlotActionButton(state.CopyPasteButtons[i], deleteButtons[i], -SlotActionSpacing);
+            }
+
+            if (i < state.ImportButtons.Count)
+            {
+                UpdateImportButton(state.ImportButtons[i], onCurrentPage);
+                PositionSlotActionButton(state.ImportButtons[i], deleteButtons[i], SlotActionSpacing);
             }
         }
 
-        UpdatePageButtons(state, pageCount);
-        UpdateFocusNeighbors(profileButtons, deleteButtons, state, pageStart, Math.Min(pageEnd, slotCount));
+        UpdateFocusNeighbors(profileButtons, deleteButtons, state, pageStart, pageEnd);
+        UpdatePageButtons(profileButtons, deleteButtons, state, pageCount, pageStart, pageEnd);
     }
 
-    private static void UpdateActionButton(
-        Godot.Button button,
+    private static void UpdateCopyPasteButton(
+        NDeleteProfileButton button,
         ProfileScreenState state,
         int profileId,
-        bool visible)
+        bool visible,
+        bool modProfileHasSave)
     {
-        button.Visible = visible;
         if (!visible)
         {
+            button.Visible = false;
             return;
         }
 
         if (!state.CopiedProfileId.HasValue)
         {
-            button.Text = BetterSaveSlotsLoc.Text("UI.copy");
-            button.Disabled = !SaveSlotService.ProfileHasSave(profileId);
+            SetActionButtonIcon(button, CopyIconPath);
+            SetActionButtonHoverText(button, "UI.copy");
+            SetActionButtonState(button, modProfileHasSave, modProfileHasSave);
             return;
         }
 
         if (state.CopiedProfileId.Value == profileId)
         {
-            button.Text = BetterSaveSlotsLoc.Text("UI.copied");
-            button.Disabled = true;
+            SetActionButtonIcon(button, CopyIconPath);
+            SetActionButtonHoverText(button, "UI.copied");
+            SetActionButtonState(button, visible: true, enabled: false);
             return;
         }
 
-        button.Text = BetterSaveSlotsLoc.Text("UI.paste");
-        button.Disabled = false;
+        SetActionButtonIcon(button, PasteIconPath);
+        SetActionButtonHoverText(button, "UI.paste");
+        SetActionButtonState(button, visible: true, enabled: true);
     }
 
-    private static void UpdatePageButtons(ProfileScreenState state, int pageCount)
+    private static void UpdateImportButton(NDeleteProfileButton button, bool visible)
     {
-        bool visible = pageCount > 1;
+        bool enabled = visible && UserDataPathProvider.IsRunningModded;
+        SetActionButtonIcon(button, ImportIconPath);
+        SetActionButtonHoverText(button, "UI.import");
+        SetActionButtonState(button, enabled, enabled);
+    }
+
+    private static void UpdatePageButtons(
+        List<NProfileButton> profileButtons,
+        List<NDeleteProfileButton> deleteButtons,
+        ProfileScreenState state,
+        int pageCount,
+        int pageStart,
+        int pageEnd)
+    {
+        bool hasPrevious = pageCount > 1 && state.PageIndex > 0;
+        bool hasNext = pageCount > 1 && state.PageIndex < pageCount - 1;
+
         if (state.PreviousPageButton != null)
         {
-            state.PreviousPageButton.Visible = visible;
-            state.PreviousPageButton.Disabled = state.PageIndex <= 0;
+            SetActionButtonState(state.PreviousPageButton, hasPrevious, hasPrevious);
+            if (hasPrevious)
+            {
+                AttachPageButton(state.PreviousPageButton, profileButtons[pageStart], deleteButtons[pageStart], isPrevious: true);
+                SetPageButtonFocus(state.PreviousPageButton, profileButtons[pageStart], isPrevious: true);
+                profileButtons[pageStart].FocusNeighborLeft = state.PreviousPageButton.GetPath();
+            }
         }
 
         if (state.NextPageButton != null)
         {
-            state.NextPageButton.Visible = visible;
-            state.NextPageButton.Disabled = state.PageIndex >= pageCount - 1;
+            SetActionButtonState(state.NextPageButton, hasNext, hasNext);
+            if (hasNext)
+            {
+                int lastIndex = Math.Max(pageStart, pageEnd - 1);
+                AttachPageButton(state.NextPageButton, profileButtons[lastIndex], deleteButtons[lastIndex], isPrevious: false);
+                SetPageButtonFocus(state.NextPageButton, profileButtons[lastIndex], isPrevious: false);
+                profileButtons[lastIndex].FocusNeighborRight = state.NextPageButton.GetPath();
+            }
         }
+    }
+
+    private static void PositionSlotActionButton(NDeleteProfileButton actionButton, NDeleteProfileButton deleteButton, float xOffset)
+    {
+        actionButton.Position = deleteButton.Position + new Vector2(xOffset, 0f);
+    }
+
+    private static void AttachPageButton(
+        NDeleteProfileButton pageButton,
+        NProfileButton slotButton,
+        NDeleteProfileButton anchorDeleteButton,
+        bool isPrevious)
+    {
+        if (pageButton.GetParent() != slotButton)
+        {
+            pageButton.GetParent()?.RemoveChild(pageButton);
+            slotButton.AddChild(pageButton);
+        }
+
+        Vector2 localDeletePosition = anchorDeleteButton.GetGlobalRect().Position - slotButton.GetGlobalRect().Position;
+        float buttonWidth = GetButtonWidth(pageButton);
+        float slotWidth = GetSlotWidth(slotButton);
+        float x = isPrevious ? -buttonWidth - PageButtonGap : slotWidth + PageButtonGap;
+        pageButton.Position = new Vector2(x, localDeletePosition.Y);
+    }
+
+    private static void SetPageButtonFocus(NDeleteProfileButton pageButton, Control slotButton, bool isPrevious)
+    {
+        NodePath slotPath = slotButton.GetPath();
+        pageButton.FocusNeighborTop = pageButton.GetPath();
+        pageButton.FocusNeighborBottom = pageButton.GetPath();
+        pageButton.FocusNeighborLeft = isPrevious ? pageButton.GetPath() : slotPath;
+        pageButton.FocusNeighborRight = isPrevious ? slotPath : pageButton.GetPath();
+    }
+
+    private static void SetActionButtonIcon(NDeleteProfileButton button, string iconPath)
+    {
+        Texture2D? texture = LoadIcon(iconPath);
+        if (texture == null)
+        {
+            return;
+        }
+
+        TextureRect? icon = button.GetNodeOrNull<TextureRect>("Icon");
+        if (icon != null)
+        {
+            icon.Texture = texture;
+        }
+    }
+
+    private static void SetActionButtonHoverText(NDeleteProfileButton button, string key)
+    {
+        MegaLabel? label = button.GetNodeOrNull<MegaLabel>("%MegaLabel");
+        label?.SetTextAutoSize(BetterSaveSlotsLoc.Text(key));
+    }
+
+    private static void SetActionButtonState(NDeleteProfileButton button, bool visible, bool enabled)
+    {
+        button.Visible = visible;
+        button.SetEnabled(enabled);
+        button.Modulate = enabled ? Colors.White : new Color(1f, 1f, 1f, 0.48f);
+    }
+
+    private static Texture2D? LoadIcon(string iconPath)
+    {
+        if (IconCache.TryGetValue(iconPath, out Texture2D? cached))
+        {
+            return cached;
+        }
+
+        Texture2D? texture = ResourceLoader.Load<Texture2D>(iconPath, null, ResourceLoader.CacheMode.Reuse);
+        if (texture == null)
+        {
+            ModLogger.Warn($"未能加载 BetterSaveSlots 按钮图标：{iconPath}");
+        }
+
+        IconCache[iconPath] = texture;
+        return texture;
+    }
+
+    private static float GetSlotWidth(Control slotButton)
+    {
+        return slotButton.Size.X > 10f ? slotButton.Size.X : FallbackSlotWidth;
+    }
+
+    private static float GetButtonWidth(Control button)
+    {
+        return button.Size.X > 10f ? button.Size.X : FallbackButtonWidth;
     }
 
     private static void UpdateFocusNeighbors(
@@ -478,26 +851,41 @@ internal static class ProfileScreenPatches
         {
             int previousIndex = index == pageStart ? pageEnd - 1 : index - 1;
             int nextIndex = index == pageEnd - 1 ? pageStart : index + 1;
-            Godot.Button? action = index < state.ActionButtons.Count ? state.ActionButtons[index] : null;
+            Control firstRowButton = VisibleOrFallback(
+                state.CopyPasteButtons[index],
+                state.ImportButtons[index],
+                deleteButtons[index]);
 
             profileButtons[index].FocusNeighborTop = profileButtons[index].GetPath();
-            profileButtons[index].FocusNeighborBottom = action?.GetPath() ?? deleteButtons[index].GetPath();
+            profileButtons[index].FocusNeighborBottom = firstRowButton.GetPath();
             profileButtons[index].FocusNeighborLeft = profileButtons[previousIndex].GetPath();
             profileButtons[index].FocusNeighborRight = profileButtons[nextIndex].GetPath();
 
-            if (action != null)
-            {
-                action.FocusNeighborTop = profileButtons[index].GetPath();
-                action.FocusNeighborBottom = deleteButtons[index].GetPath();
-                action.FocusNeighborLeft = state.ActionButtons[previousIndex].GetPath();
-                action.FocusNeighborRight = state.ActionButtons[nextIndex].GetPath();
-            }
-
-            deleteButtons[index].FocusNeighborTop = action?.GetPath() ?? profileButtons[index].GetPath();
-            deleteButtons[index].FocusNeighborBottom = deleteButtons[index].GetPath();
-            deleteButtons[index].FocusNeighborLeft = deleteButtons[previousIndex].GetPath();
-            deleteButtons[index].FocusNeighborRight = deleteButtons[nextIndex].GetPath();
+            SetRowFocus(state.CopyPasteButtons[index], profileButtons[index], deleteButtons[index], state.ImportButtons[index]);
+            SetRowFocus(deleteButtons[index], profileButtons[index], state.CopyPasteButtons[index], state.ImportButtons[index]);
+            SetRowFocus(state.ImportButtons[index], profileButtons[index], deleteButtons[index], state.CopyPasteButtons[index]);
         }
+    }
+
+    private static Control VisibleOrFallback(params Control[] controls)
+    {
+        foreach (Control control in controls)
+        {
+            if (control.Visible)
+            {
+                return control;
+            }
+        }
+
+        return controls[0];
+    }
+
+    private static void SetRowFocus(Control control, Control top, Control left, Control right)
+    {
+        control.FocusNeighborTop = top.GetPath();
+        control.FocusNeighborBottom = control.GetPath();
+        control.FocusNeighborLeft = left.GetPath();
+        control.FocusNeighborRight = right.GetPath();
     }
 
     private static int GetPageCount()
@@ -508,16 +896,31 @@ internal static class ProfileScreenPatches
             / BetterSaveSlotsSettings.SlotsPerPage);
     }
 
+    private enum ProfileActionKind
+    {
+        CopyPaste,
+        Import,
+        PreviousPage,
+        NextPage
+    }
+
+    private sealed record ActionButtonInfo(
+        WeakReference<NProfileScreen> Screen,
+        int ProfileId,
+        ProfileActionKind Kind);
+
     private sealed class ProfileScreenState
     {
         public int PageIndex { get; set; }
 
         public int? CopiedProfileId { get; set; }
 
-        public List<Godot.Button> ActionButtons { get; } = [];
+        public List<NDeleteProfileButton> CopyPasteButtons { get; } = [];
 
-        public Godot.Button? PreviousPageButton { get; set; }
+        public List<NDeleteProfileButton> ImportButtons { get; } = [];
 
-        public Godot.Button? NextPageButton { get; set; }
+        public NDeleteProfileButton? PreviousPageButton { get; set; }
+
+        public NDeleteProfileButton? NextPageButton { get; set; }
     }
 }
