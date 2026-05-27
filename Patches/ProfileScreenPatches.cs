@@ -29,6 +29,7 @@ internal static class ProfileScreenPatches
     private const float FallbackSlotWidth = 450f;
     private const float FallbackSlotHeight = 568f;
     private const float FallbackButtonWidth = 72f;
+    private const float FallbackButtonHeight = 72f;
     private const float SlotActionBottomGap = 30f;
 
     private static readonly ConditionalWeakTable<NProfileScreen, ProfileScreenState> States = new();
@@ -818,8 +819,8 @@ internal static class ProfileScreenPatches
         float xOffset)
     {
         AttachToSlot(actionButton, slotButton);
-        actionButton.Position = GetDeleteButtonAnchorPosition(slotButton, anchorDeleteButton, actionButton)
-            + new Vector2(xOffset, 0f);
+        Vector2 anchorPosition = GetDeleteButtonAnchorPosition(slotButton, anchorDeleteButton);
+        actionButton.Position = AlignButtonToAnchorCenter(anchorPosition, anchorDeleteButton, actionButton, xOffset);
     }
 
     private static void AttachPageButton(
@@ -834,11 +835,12 @@ internal static class ProfileScreenPatches
             slotButton.AddChild(pageButton);
         }
 
-        Vector2 localDeletePosition = GetDeleteButtonAnchorPosition(slotButton, anchorDeleteButton, pageButton);
+        Vector2 localDeletePosition = GetDeleteButtonAnchorPosition(slotButton, anchorDeleteButton);
         float buttonWidth = GetButtonWidth(pageButton);
         float slotWidth = GetSlotWidth(slotButton);
         float x = isPrevious ? -buttonWidth - PageButtonGap : slotWidth + PageButtonGap;
-        pageButton.Position = new Vector2(x, localDeletePosition.Y);
+        float y = AlignButtonToAnchorCenter(localDeletePosition, anchorDeleteButton, pageButton, centerOffsetX: 0f).Y;
+        pageButton.Position = new Vector2(x, y);
     }
 
     private static void AttachToSlot(Control control, NProfileButton slotButton)
@@ -857,10 +859,7 @@ internal static class ProfileScreenPatches
         return button.Name.ToString().StartsWith("BetterSaveSlotsDeleteProfileButton", StringComparison.Ordinal);
     }
 
-    private static Vector2 GetDeleteButtonAnchorPosition(
-        NProfileButton slotButton,
-        NDeleteProfileButton anchorDeleteButton,
-        Control fallbackButton)
+    private static Vector2 GetDeleteButtonAnchorPosition(NProfileButton slotButton, NDeleteProfileButton anchorDeleteButton)
     {
         if (anchorDeleteButton.GetParent() == slotButton)
         {
@@ -873,7 +872,21 @@ internal static class ProfileScreenPatches
             return anchorRect.Position - slotButton.GetGlobalRect().Position;
         }
 
-        return GetDeleteButtonSlotOffset(slotButton, fallbackButton);
+        return GetDeleteButtonSlotOffset(slotButton, anchorDeleteButton);
+    }
+
+    private static Vector2 AlignButtonToAnchorCenter(
+        Vector2 anchorPosition,
+        Control anchorButton,
+        Control actionButton,
+        float centerOffsetX)
+    {
+        float x = anchorPosition.X
+            + (GetButtonWidth(anchorButton) - GetButtonWidth(actionButton)) / 2f
+            + centerOffsetX;
+        float y = anchorPosition.Y
+            + (GetButtonHeight(anchorButton) - GetButtonHeight(actionButton)) / 2f;
+        return new Vector2(x, y);
     }
 
     private static void SetPageButtonFocus(NDeleteProfileButton pageButton, Control slotButton, bool isPrevious)
@@ -943,6 +956,11 @@ internal static class ProfileScreenPatches
     private static float GetButtonWidth(Control button)
     {
         return button.Size.X > 10f ? button.Size.X : FallbackButtonWidth;
+    }
+
+    private static float GetButtonHeight(Control button)
+    {
+        return button.Size.Y > 10f ? button.Size.Y : FallbackButtonHeight;
     }
 
     private static Vector2 GetDeleteButtonSlotOffset(Control slotButton, Control actionButton)
