@@ -3,7 +3,7 @@ namespace BetterSaveSlots.Core;
 public static class VersionInfo
 {
     public const string Name = "BetterSaveSlots";
-    public const string Version = "0.1.2";
+    public const string Version = "0.1.3";
 
     public static string Tag => $"[{Name} v{Version}]";
 }
