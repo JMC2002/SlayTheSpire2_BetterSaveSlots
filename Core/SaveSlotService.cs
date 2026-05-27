@@ -68,13 +68,16 @@ public static class SaveSlotService
         // 复制是 profile 目录级操作；即便目标没有 progress.save，也清理可能残留的 prefs/current_run。
         DeleteProfileDirectory(store, targetProfileId, targetMode);
 
+        ISaveStore copyStore = GetLocalStore(store);
         int copiedFiles = 0;
         foreach (string rootName in ProfileRootNames)
         {
             string sourceRoot = GetRelativePath(sourceProfileId, sourceMode, rootName);
             string targetRoot = GetRelativePath(targetProfileId, targetMode, rootName);
-            copiedFiles += await CopyDirectoryRecursiveAsync(store, sourceRoot, targetRoot);
+            copiedFiles += await CopyDirectoryRecursiveAsync(copyStore, sourceRoot, targetRoot);
         }
+
+        await OverwriteKnownProfileFilesToCloudAsync(store, targetProfileId, targetMode);
 
         ModLogger.Info(
             $"已复制存档：{Describe(sourceMode, sourceProfileId)} -> {Describe(targetMode, targetProfileId)}，文件数={copiedFiles}。");
@@ -178,6 +181,10 @@ public static class SaveSlotService
             GetRelativePath(profileId, mode, "saves/history"),
             RunHistorySaveManager.maxCloudBytes,
             RunHistorySaveManager.maxCloudFileCount));
+        await Task.WhenAll(cloudSaveStore.OverwriteCloudWithLocalDirectory(
+            GetRelativePath(profileId, mode, "replays"),
+            byteLimit: null,
+            fileLimit: null));
     }
 
     public static void CleanupTemporaryFiles(ISaveStore store, int profileId, SaveSlotMode mode)
@@ -302,6 +309,7 @@ public static class SaveSlotService
             string targetPath = NormalizeRelativePath($"{targetDirectory}/{fileName}");
             byte[] bytes = ReadLocalBytes(store, sourcePath);
             await store.WriteFileAsync(targetPath, bytes);
+            store.SetLastModifiedTime(targetPath, store.GetLastModifiedTime(sourcePath));
             copiedFiles++;
         }
 
@@ -384,15 +392,21 @@ public static class SaveSlotService
     {
         try
         {
-            if (store.DirectoryExists(directoryPath))
+            ISaveStore localStore = GetLocalStore(store);
+            if (localStore.DirectoryExists(directoryPath))
             {
-                store.DeleteDirectory(directoryPath);
+                localStore.DeleteDirectory(directoryPath);
             }
         }
         catch (Exception ex)
         {
             ModLogger.Warn($"删除本地存档目录失败：{directoryPath}", ex);
         }
+    }
+
+    private static ISaveStore GetLocalStore(ISaveStore store)
+    {
+        return store is CloudSaveStore cloudSaveStore ? cloudSaveStore.LocalStore : store;
     }
 
     private static void CleanupStaleCurrentRunSave(
