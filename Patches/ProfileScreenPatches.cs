@@ -88,6 +88,12 @@ internal static class ProfileScreenPatches
     {
         if (!ActionButtons.TryGetValue(__instance.GetInstanceId(), out ActionButtonInfo? actionInfo))
         {
+            if (__instance.Name.ToString().StartsWith("BetterSaveSlots", StringComparison.Ordinal))
+            {
+                ModLogger.Warn($"BetterSaveSlots 自定义按钮失去动作注册，已阻止落回原生删除逻辑：{__instance.Name}。");
+                return false;
+            }
+
             return true;
         }
 
@@ -145,7 +151,11 @@ internal static class ProfileScreenPatches
             eventsSubscribed = true;
         }
 
-        screen.TreeExiting += () => States.Remove(screen);
+        screen.TreeExiting += () =>
+        {
+            States.Remove(screen);
+            RemoveActionButtonsForScreen(screen);
+        };
 
         EnsureSlotControls(screen);
         UpdateScreen(screen, preferCurrentProfile: true);
@@ -297,7 +307,19 @@ internal static class ProfileScreenPatches
     {
         ulong instanceId = button.GetInstanceId();
         ActionButtons[instanceId] = new ActionButtonInfo(new WeakReference<NProfileScreen>(screen), profileId, kind);
-        button.TreeExiting += () => ActionButtons.Remove(instanceId);
+    }
+
+    private static void RemoveActionButtonsForScreen(NProfileScreen screen)
+    {
+        foreach ((ulong instanceId, ActionButtonInfo actionInfo) in ActionButtons.ToArray())
+        {
+            if (!actionInfo.Screen.TryGetTarget(out NProfileScreen? target)
+                || !GodotObject.IsInstanceValid(target)
+                || ReferenceEquals(target, screen))
+            {
+                ActionButtons.Remove(instanceId);
+            }
+        }
     }
 
     private static void RemoveDuplicatedBetterSaveSlotsControls(Node node)
@@ -529,10 +551,11 @@ internal static class ProfileScreenPatches
         }
 
         int firstSourceProfileId = sourceProfileIds[0];
+        var firstSourceText = BetterSaveSlotsLoc.Loc("POPUP.IMPORT_SOURCE_BUTTON");
+        firstSourceText.AddObj("Source", firstSourceProfileId);
         popup.InitYesButton(
-            BetterSaveSlotsLoc.Loc("POPUP.IMPORT_SOURCE_BUTTON"),
+            firstSourceText,
             _ => completion.TrySetResult(firstSourceProfileId));
-        popup.YesButton.SetText(BetterSaveSlotsLoc.Format("POPUP.IMPORT_SOURCE_BUTTON", ("Source", firstSourceProfileId)));
 
         popup.InitNoButton(
             BetterSaveSlotsLoc.Loc("POPUP.cancel"),
