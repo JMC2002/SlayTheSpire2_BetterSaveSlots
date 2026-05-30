@@ -18,7 +18,7 @@ env:
   BADGE_DIR: .github/badges
   CODE_STATS_BEGIN: '<!-- code-stats:start -->'
   CODE_STATS_END: '<!-- code-stats:end -->'
-  CODE_STATS_WORKFLOW_URL: https://github.com/JMC2002/SlayTheSpire2_JmcModLib/actions/workflows/code-lines.yml
+  CODE_STATS_WORKFLOW_URL: https://github.com/JMC2002/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml
   EXCLUDE_PATH_REGEX: '(^|/)(bin|obj|\.vs|modPublish|\.github/badges)(/|$)'
   CLOC_EXCLUDE_LANGUAGES: Markdown,Text
   CODE_EXTENSIONS: '.cs,.csproj,.props,.targets,.yml,.yaml,.json,.xml,.gd,.godot,.cfg,.sln,.slnx'
@@ -132,7 +132,17 @@ jobs:
           }
 
           function Update-ReadmeBadges([string]$readmePath, [object[]]$badgeItems) {
+            if (-not (Test-Path -Path $readmePath -PathType Leaf)) {
+              Write-Host "Skip $readmePath because it does not exist."
+              return
+            }
+
             $text = Get-Content -Path $readmePath -Raw
+            if ([string]::IsNullOrWhiteSpace($text)) {
+              Write-Host "Skip $readmePath because it is empty."
+              return
+            }
+
             $isEnglish = $readmePath -like "*_en.md"
             $lines = New-Object System.Collections.Generic.List[string]
             $lines.Add($env:CODE_STATS_BEGIN)
