@@ -4,8 +4,6 @@ using BetterSaveSlots.Localization;
 using Godot;
 using JmcModLib.Utils;
 using MegaCrit.Sts2.addons.mega_text;
-using MegaCrit.Sts2.Core.Nodes.CommonUi;
-using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Screens.ProfileScreen;
 using MegaCrit.Sts2.Core.Saves;
 
@@ -206,10 +204,10 @@ internal static partial class ProfileScreenPatches
         float centerOffsetX)
     {
         float x = anchorPosition.X
-            + (GetButtonWidth(anchorButton) - GetButtonWidth(actionButton)) / 2f
+            + ((GetButtonWidth(anchorButton) - GetButtonWidth(actionButton)) / 2f)
             + centerOffsetX;
         float y = anchorPosition.Y
-            + (GetButtonHeight(anchorButton) - GetButtonHeight(actionButton)) / 2f;
+            + ((GetButtonHeight(anchorButton) - GetButtonHeight(actionButton)) / 2f);
         return new Vector2(x, y);
     }
 
@@ -231,10 +229,7 @@ internal static partial class ProfileScreenPatches
         }
 
         TextureRect? icon = button.GetNodeOrNull<TextureRect>("Icon");
-        if (icon != null)
-        {
-            icon.Texture = texture;
-        }
+        icon?.Texture = texture;
     }
 
     private static void SetActionButtonHoverText(NDeleteProfileButton button, string key)
@@ -302,7 +297,7 @@ internal static partial class ProfileScreenPatches
     private static Vector2 GetSlotActionGlobalPosition(Control slotButton, Control actionButton, float xOffset)
     {
         Rect2 slotRect = GetSlotGlobalRect(slotButton);
-        float x = slotRect.Position.X + (slotRect.Size.X - GetButtonWidth(actionButton)) / 2f + xOffset;
+        float x = slotRect.Position.X + ((slotRect.Size.X - GetButtonWidth(actionButton)) / 2f) + xOffset;
         float y = slotRect.Position.Y + slotRect.Size.Y + SlotActionBottomGap;
         return new Vector2(x, y);
     }

@@ -1,19 +1,11 @@
 using BetterSaveSlots.Configuration;
 using BetterSaveSlots.Events;
-using BetterSaveSlots.Features.SaveSlots;
-using BetterSaveSlots.Localization;
 using Godot;
 using HarmonyLib;
-using JmcModLib.Prefabs;
 using JmcModLib.Utils;
-using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Helpers;
-using MegaCrit.Sts2.Core.Nodes.CommonUi;
-using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
-using MegaCrit.Sts2.Core.Nodes.Multiplayer;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.Screens.ProfileScreen;
-using MegaCrit.Sts2.Core.Saves;
 using System.Runtime.CompilerServices;
 
 namespace BetterSaveSlots.Patches.ProfileScreen;
@@ -36,7 +28,7 @@ internal static partial class ProfileScreenPatches
     private const float SlotActionBottomGap = 30f;
     private const int DeferredLayoutFrames = 2;
 
-    private static readonly ConditionalWeakTable<NProfileScreen, ProfileScreenState> States = new();
+    private static readonly ConditionalWeakTable<NProfileScreen, ProfileScreenState> States = [];
     private static readonly List<WeakReference<NProfileScreen>> KnownScreens = [];
     private static readonly Dictionary<ulong, ActionButtonInfo> ActionButtons = [];
     private static readonly Dictionary<string, Texture2D?> IconCache = [];
@@ -326,9 +318,7 @@ internal static partial class ProfileScreenPatches
         ProfileScreenState state,
         List<NDeleteProfileButton> deleteButtons)
     {
-        if (state.PreviousPageButton == null)
-        {
-            state.PreviousPageButton = CreateActionButton(
+        state.PreviousPageButton ??= CreateActionButton(
                 screen,
                 deleteButtons[0],
                 "BetterSaveSlotsPreviousPageButton",
@@ -336,11 +326,8 @@ internal static partial class ProfileScreenPatches
                 profileId: 0,
                 PreviousIconPath,
                 "UI.previous_page");
-        }
 
-        if (state.NextPageButton == null)
-        {
-            state.NextPageButton = CreateActionButton(
+        state.NextPageButton ??= CreateActionButton(
                 screen,
                 deleteButtons[Math.Min(2, deleteButtons.Count - 1)],
                 "BetterSaveSlotsNextPageButton",
@@ -348,7 +335,6 @@ internal static partial class ProfileScreenPatches
                 profileId: 0,
                 NextIconPath,
                 "UI.next_page");
-        }
     }
 
     private static NDeleteProfileButton CreateActionButton(

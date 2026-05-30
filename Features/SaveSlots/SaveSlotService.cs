@@ -1,10 +1,8 @@
-using HarmonyLib;
 using BetterSaveSlots.Configuration;
+using HarmonyLib;
 using JmcModLib.Utils;
 using MegaCrit.Sts2.Core.Saves;
-using MegaCrit.Sts2.Core.Saves.Managers;
 using System.Globalization;
-using System.Text.Json;
 
 namespace BetterSaveSlots.Features.SaveSlots;
 
