@@ -1,4 +1,4 @@
-using BetterSaveSlots.Infrastructure;
+using BetterSaveSlots.Core;
 using Godot;
 using HarmonyLib;
 using JmcModLib.Utils;
