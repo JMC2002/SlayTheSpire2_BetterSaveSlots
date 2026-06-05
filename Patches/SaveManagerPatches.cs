@@ -111,13 +111,6 @@ internal static class SaveManagerPatches
         __result = SyncCloudToLocalAfterOriginalAsync(__instance, __result);
     }
 
-    [HarmonyPatch(nameof(SaveManager.TryFirstTimeCloudSync))]
-    [HarmonyPostfix]
-    private static void TryFirstTimeCloudSyncPostfix(SaveManager __instance, ref Task<bool> __result)
-    {
-        __result = TryFirstTimeCloudSyncAfterOriginalAsync(__instance, __result);
-    }
-
     [HarmonyPatch("CleanupTemporaryFiles")]
     [HarmonyPostfix]
     private static void CleanupTemporaryFilesPostfix(SaveManager __instance)
@@ -185,26 +178,6 @@ internal static class SaveManagerPatches
         }
 
         ModLogger.Info($"BetterSaveSlots 已完成 4-{BetterSaveSlotsSettings.EffectiveSlotCount} 号槽云同步。");
-    }
-
-    private static async Task<bool> TryFirstTimeCloudSyncAfterOriginalAsync(SaveManager saveManager, Task<bool> originalTask)
-    {
-        bool uploaded = await originalTask;
-        if (!uploaded || !UserDataPathProvider.IsRunningModded)
-        {
-            return uploaded;
-        }
-
-        ISaveStore store = SaveSlotService.GetSaveStore(saveManager);
-        for (int profileId = BetterSaveSlotsSettings.VanillaSlotCount + 1;
-             profileId <= BetterSaveSlotsSettings.EffectiveSlotCount;
-             profileId++)
-        {
-            await SaveSlotService.OverwriteKnownProfileFilesToCloudAsync(store, profileId, SaveSlotMode.Modded);
-        }
-
-        ModLogger.Info($"BetterSaveSlots 已完成 4-{BetterSaveSlotsSettings.EffectiveSlotCount} 号槽首次云上传。");
-        return true;
     }
 
     private static void CleanupExtendedStaleCurrentRunSaves(SaveManager saveManager)

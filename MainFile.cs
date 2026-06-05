@@ -1,4 +1,5 @@
 using BetterSaveSlots.Core;
+using BetterSaveSlots.Patches.SaveManagement;
 using Godot;
 using HarmonyLib;
 using JmcModLib.Utils;
@@ -20,6 +21,7 @@ public partial class MainFile : Node
 
         Harmony harmony = new(VersionInfo.Name);
         harmony.PatchAll(Assembly.GetExecutingAssembly());
+        SaveManagerCloudSyncCompatibilityPatches.Apply(harmony);
         ModLogger.Info("Harmony 补丁已应用。");
     }
 }
