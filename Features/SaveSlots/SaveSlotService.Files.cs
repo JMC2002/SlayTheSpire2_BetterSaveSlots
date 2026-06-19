@@ -5,6 +5,16 @@ namespace BetterSaveSlots.Features.SaveSlots;
 
 public static partial class SaveSlotService
 {
+    private static readonly string[] VolatileSaveDirectoryPrefixes =
+    [
+        "handsup_"
+    ];
+
+    private static readonly string[] VolatileSaveFilePrefixes =
+    [
+        "handsup_"
+    ];
+
     private static async Task<int> CopyDirectoryRecursiveAsync(ISaveStore store, string sourceDirectory, string targetDirectory)
     {
         if (!store.DirectoryExists(sourceDirectory))
@@ -32,6 +42,11 @@ public static partial class SaveSlotService
 
         foreach (string directoryName in store.GetDirectoriesInDirectory(sourceDirectory))
         {
+            if (ShouldSkipCopyDirectory(directoryName))
+            {
+                continue;
+            }
+
             string sourceChild = NormalizeRelativePath($"{sourceDirectory}/{directoryName}");
             string targetChild = NormalizeRelativePath($"{targetDirectory}/{directoryName}");
             copiedFiles += await CopyDirectoryRecursiveAsync(store, sourceChild, targetChild);
@@ -108,6 +123,25 @@ public static partial class SaveSlotService
     private static bool ShouldSkipCopyFile(string fileName)
     {
         return fileName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)
-            || fileName.EndsWith(".backup.backup", StringComparison.OrdinalIgnoreCase);
+            || fileName.EndsWith(".backup.backup", StringComparison.OrdinalIgnoreCase)
+            || HasAnyPrefix(fileName, VolatileSaveFilePrefixes);
+    }
+
+    private static bool ShouldSkipCopyDirectory(string directoryName)
+    {
+        return HasAnyPrefix(directoryName, VolatileSaveDirectoryPrefixes);
+    }
+
+    private static bool HasAnyPrefix(string value, IReadOnlyList<string> prefixes)
+    {
+        foreach (string prefix in prefixes)
+        {
+            if (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

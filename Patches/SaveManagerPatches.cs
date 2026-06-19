@@ -1,4 +1,5 @@
 using BetterSaveSlots.Configuration;
+using BetterSaveSlots.Core;
 using BetterSaveSlots.Features.SaveSlots;
 using BetterSaveSlots.State;
 using HarmonyLib;
@@ -22,6 +23,13 @@ internal static class SaveManagerPatches
 
     private static readonly AccessTools.FieldRef<SaveManager, Action<int>?> ProfileIdChangedRef =
         AccessTools.FieldRefAccess<SaveManager, Action<int>?>("ProfileIdChanged");
+
+    [HarmonyPatch(nameof(SaveManager.InitProfileId))]
+    [HarmonyPrefix]
+    private static void InitProfileIdPrefix()
+    {
+        ModdedSavePathMode.Ensure("SaveManager.InitProfileId");
+    }
 
     [HarmonyPatch(nameof(SaveManager.InitProfileId))]
     [HarmonyPostfix]
