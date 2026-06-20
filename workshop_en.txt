@@ -26,9 +26,7 @@ Lost your saves after installing mods? Want to test mods temporarily without ris
 
 [h2] 4. Compatibility [/h2]
 [list]
-    [*] This MOD modifies the MOD menu UI, so it may conflict with other MODs that modify the same UI
-    [*] This MOD uses the Harmony framework, so other MODs that conflict with Harmony may conflict with this MOD
-    [*] This MOD uses reflection extensively, so it may stop working after game updates
+    [*] This mod makes extensive use of reflection and may stop working after game updates. If you find that the mod no longer works, please report it promptly.
 [/list]
 
 [h2] 5. TODO [/h2]
