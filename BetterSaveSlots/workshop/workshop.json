@@ -1,0 +1,12 @@
+{
+  "title": "BetterSaveSlots",
+  "description": "打Mod后存档丢失？使用这个Mod导入打Mod前的存档，同时还可以增加存档槽数量、复制粘贴存档。\n\nLost your saves after enabling mods? Use this mod to import pre-modded saves. It also adds more save slots and lets you copy/paste save files.",
+  "visibility": "public",
+  "changeNote": "适配正式MOD发布的格式迁移。",
+  "tags": [
+    "QoL"
+  ],
+  "dependencies": [
+    3747526103
+  ]
+}

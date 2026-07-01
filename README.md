@@ -2,15 +2,15 @@
   <a href="README.md"><img alt="中文" src=".github/badges/language-zh.svg"></a>
   <a href="README_en.md"><img alt="English" src=".github/badges/language-en.svg"></a>
   <a href="CHANGELOG.md"><img alt="更新日志" src=".github/badges/changelog-zh.svg"></a>
-  <a href="https://github.com/JMC2002/SlayTheSpire2_BetterSaveSlots/releases"><img alt="Releases" src=".github/badges/releases.svg"></a>
+  <a href="https://github.com/JMC-Mods/SlayTheSpire2_BetterSaveSlots/releases"><img alt="Releases" src=".github/badges/releases.svg"></a>
 <!-- code-stats:start -->
-  <a href="https://github.com/JMC2002/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="C# 行数" src=".github/badges/code-lines-csharp.svg"></a>
-  <a href="https://github.com/JMC2002/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="MSBuild script 行数" src=".github/badges/code-lines-msbuild-script.svg"></a>
-  <a href="https://github.com/JMC2002/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="JSON 行数" src=".github/badges/code-lines-json.svg"></a>
-  <a href="https://github.com/JMC2002/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="YAML 行数" src=".github/badges/code-lines-yaml.svg"></a>
-  <a href="https://github.com/JMC2002/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="总代码行数" src=".github/badges/code-lines-total.svg"></a>
-  <a href="https://github.com/JMC2002/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="累计新增行数" src=".github/badges/code-lines-added.svg"></a>
-  <a href="https://github.com/JMC2002/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="累计删除行数" src=".github/badges/code-lines-deleted.svg"></a>
+  <a href="https://github.com/JMC-Mods/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="C# 行数" src=".github/badges/code-lines-csharp.svg"></a>
+  <a href="https://github.com/JMC-Mods/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="MSBuild script 行数" src=".github/badges/code-lines-msbuild-script.svg"></a>
+  <a href="https://github.com/JMC-Mods/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="JSON 行数" src=".github/badges/code-lines-json.svg"></a>
+  <a href="https://github.com/JMC-Mods/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="YAML 行数" src=".github/badges/code-lines-yaml.svg"></a>
+  <a href="https://github.com/JMC-Mods/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="总代码行数" src=".github/badges/code-lines-total.svg"></a>
+  <a href="https://github.com/JMC-Mods/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="累计新增行数" src=".github/badges/code-lines-added.svg"></a>
+  <a href="https://github.com/JMC-Mods/SlayTheSpire2_BetterSaveSlots/actions/workflows/code-lines.yml"><img alt="累计删除行数" src=".github/badges/code-lines-deleted.svg"></a>
 <!-- code-stats:end -->
 </p>
 
@@ -20,11 +20,11 @@
 ### Mod本体安装
 Steam版本直接在创意工坊订阅即可（暂未开放）
 
-其他版本可以自行编译，或者在[📦 Releases](https://github.com/JMC2002/SlayTheSpire2_BetterSaveSlots/releases)界面下载.zip后解压到游戏安装目录下的Mods
+其他版本可以自行编译，或者在[📦 Releases](https://github.com/JMC-Mods/SlayTheSpire2_BetterSaveSlots/releases)界面下载.zip后解压到游戏安装目录下的Mods
 目录下（没有就新建一个）
 
 ### 前置安装
-**此外，本模组强依赖于模组[JmcModLib](https://github.com/JMC2002/SlayTheSpire2_JmcModLib/releases)**，安装方法同上
+**此外，本模组强依赖于模组[JmcModLib](https://github.com/JMC-Mods/SlayTheSpire2_JmcModLib/releases)**，安装方法同上
 
 安装完成后的目录结构如下：
 
@@ -51,7 +51,7 @@ BetterSaveSlots 用于增强《杀戮尖塔 2》的存档槽管理：在原有�
 
 [演示视频（B站）](https://www.bilibili.com/video/BV1RRVG6cEez/)
 
-[Github仓库](https://github.com/JMC2002/SlayTheSpire2_BetterSaveSlots)
+[Github仓库](https://github.com/JMC-Mods/SlayTheSpire2_BetterSaveSlots)
 ## ⚙️ 2. 功能
 - 存档选择界面每个槽位增加复制/粘贴按钮，覆盖已有存档前会弹出确认框
     ![](./pic/粘贴.png)
@@ -62,7 +62,7 @@ BetterSaveSlots 用于增强《杀戮尖塔 2》的存档槽管理：在原有�
 - 超过 3 个槽位时，存档选择界面按每页 3 个槽位分页显示
     ![](./pic/存档界面.png)
 ## 🔔 3. 提醒
-- **本模组强依赖于模组[JmcModLib](https://github.com/JMC2002/SlayTheSpire2_JmcModLib/releases)**
+- **本模组强依赖于模组[JmcModLib](https://github.com/JMC-Mods/SlayTheSpire2_JmcModLib/releases)**
 - 扩展槽位只面向 MOD 环境；普通原版仍建议只使用 1-3 号槽
 - 存档覆盖属于危险操作，请确认目标槽不再需要后再覆盖
  
