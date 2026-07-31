@@ -13,6 +13,6 @@ internal static class ModdedSavePathMode
         }
 
         UserDataPathProvider.IsRunningModded = true;
-        ModLogger.Warn($"检测到游戏尚未启用 MOD 存档路径，已由 BetterSaveSlots 补设。来源={source}。");
+        ModLogger.Warn($"存档初始化阶段检测到 MOD 存档路径标记仍未启用，可能受到其他 MOD 影响，已由 BetterSaveSlots 补设。来源={source}。");
     }
 }

@@ -28,6 +28,8 @@ internal static class SaveManagerPatches
     [HarmonyPrefix]
     private static void InitProfileIdPrefix()
     {
+        // 0.103.3-0.110：游戏会在所有 MOD 初始化完成后才设置 MOD 存档标记，
+        // 因此必须等到存档初始化阶段再检查，避免把正常的启动时序误报为其他 MOD 干扰。
         ModdedSavePathMode.Ensure("SaveManager.InitProfileId");
     }
 
